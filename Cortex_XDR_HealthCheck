@@ -1,4 +1,4 @@
-""" A Health Check script for Cortex XDR tenants.  Utilizes this REST API:  cortex.paloaltonetworks.com/r/Cortex-XDR-REST-API/System-Health-Check"""
+""" A Health Check script for Cortex XDR tenants.  Utilizes this REST API:  https://docs-cortex.paloaltonetworks.com/r/Cortex-XDR-REST-API/System-Health-Check"""
 
 
 import requests
