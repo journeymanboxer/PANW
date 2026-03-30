@@ -1,0 +1,76 @@
+""" A Health Check script for Cortex XDR tenants.  Utilizes this REST API:  cortex.paloaltonetworks.com/r/Cortex-XDR-REST-API/System-Health-Check"""
+
+
+import requests
+import time
+import secrets
+import string
+import hashlib
+from datetime import datetime, timezone
+
+# --- CONFIGURATION ---
+# Replace these with your actual Cortex XDR environment details
+FQDN = "api-yourfqdn.xdr.us.paloaltonetworks.com"  # e.g., api-tenant.xdr.us.paloaltonetworks.com
+API_KEY = "your_api_key_here"
+API_KEY_ID = "your_api_key_id_here"
+AUTH_TYPE = "advanced"  # Set to "standard" or "advanced" based on your key type
+CHECK_INTERVAL = 60      # Seconds between health checks
+
+def get_auth_headers():
+    """Generates the necessary authentication headers for Cortex XDR."""
+    if AUTH_TYPE == "standard":
+        return {
+            "Authorization": API_KEY,
+            "x-xdr-auth-id": str(API_KEY_ID),
+            "Content-Type": "application/json"
+        }
+    
+    # Advanced Authentication Logic
+    nonce = "".join([secrets.choice(string.ascii_letters + string.digits) for _ in range(64)])
+    timestamp = int(datetime.now(timezone.utc).timestamp()) * 1000
+    
+    # Generate SHA256 hash: API_KEY + nonce + timestamp
+    auth_string = f"{API_KEY}{nonce}{timestamp}"
+    api_key_hash = hashlib.sha256(auth_string.encode("utf-8")).hexdigest()
+    
+    return {
+        "x-xdr-auth-id": str(API_KEY_ID),
+        "Authorization": api_key_hash,
+        "x-xdr-nonce": nonce,
+        "x-xdr-timestamp": str(timestamp),
+        "Content-Type": "application/json"
+    }
+
+def check_system_health():
+    """Calls the System Health Check endpoint."""
+    url = f"https://{FQDN}/public_api/v1/healthcheck"
+    headers = get_auth_headers()
+    
+    try:
+        # The documentation specifies GET for the healthcheck endpoint
+        response = requests.get(url, headers=headers)
+        
+        timestamp_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        if response.status_code == 200:
+            data = response.json()
+            status = data.get("reply", {}).get("status", "Unknown") # Adjust based on specific XDR response structure
+            # Note: The raw response usually looks like {"reply": {"status": "available"}}
+            print(f"[{timestamp_str}] Health Status: {data}")
+        else:
+            print(f"[{timestamp_str}] Error: Received status code {response.status_code}")
+            print(f"Response: {response.text}")
+            
+    except Exception as e:
+        print(f"[{datetime.now()}] An error occurred: {e}")
+
+def main():
+    print(f"Starting Cortex XDR Health Monitoring on {FQDN}...")
+    print(f"Interval: {CHECK_INTERVAL} seconds. Press Ctrl+C to stop.\n")
+    
+    while True:
+        check_system_health()
+        time.sleep(CHECK_INTERVAL)
+
+if __name__ == "__main__":
+    main()
